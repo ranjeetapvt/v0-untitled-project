@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Eye, Trash2 } from "lucide-react"
 import Image from "next/image"
 import { useState } from "react"
-import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { deleteItinerary } from "@/lib/firebase/firestore"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,12 +58,7 @@ export function ItineraryGrid({ itineraries }: ItineraryGridProps) {
       setIsDeleting(true)
 
       // Delete the itinerary
-      const { error } = await supabase.from("itineraries").delete().eq("id", itineraryToDelete)
-
-      if (error) {
-        console.error("Error deleting itinerary:", error)
-        return
-      }
+      await deleteItinerary(itineraryToDelete)
 
       // Refresh the page to show updated itineraries
       router.refresh()

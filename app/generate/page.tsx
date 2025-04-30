@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Navbar } from "@/components/navbar"
 import { ProgressIndicator } from "@/components/progress-indicator"
 import { TripDetailsForm } from "@/components/trip-details-form"
@@ -13,10 +13,12 @@ import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "@/lib/firebase/auth-context"
 
 export default function GenerateItinerary() {
   const router = useRouter()
   const { toast } = useToast()
+  const { user, loading } = useAuth()
   const [step, setStep] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
   const [formData, setFormData] = useState({
@@ -42,6 +44,13 @@ export default function GenerateItinerary() {
       sustainable: false,
     },
   })
+
+  useEffect(() => {
+    // If not logged in and not loading, redirect to sign in
+    if (!loading && !user) {
+      router.push("/signin")
+    }
+  }, [user, loading, router])
 
   const updateFormData = (data: Partial<typeof formData>) => {
     setFormData({ ...formData, ...data })
@@ -85,14 +94,28 @@ export default function GenerateItinerary() {
       return
     }
 
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to generate an itinerary.",
+        variant: "destructive",
+      })
+      router.push("/signin")
+      return
+    }
+
     try {
       setIsGenerating(true)
+
+      // Get the user's ID token for authentication
+      const idToken = await user.getIdToken()
 
       // Call the API to generate the itinerary
       const response = await fetch("/api/generate-itinerary", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify(formData),
       })
@@ -115,6 +138,20 @@ export default function GenerateItinerary() {
       })
       setIsGenerating(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="container mx-auto flex items-center justify-center px-4 py-16">
+          <div className="text-center">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

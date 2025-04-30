@@ -1,3 +1,7 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { ItineraryHeader } from "@/components/itinerary-header"
 import { ItineraryTabs } from "@/components/itinerary-tabs"
@@ -5,60 +9,107 @@ import { DayPlan } from "@/components/day-plan"
 import { Button } from "@/components/ui/button"
 import { Printer } from "lucide-react"
 import Link from "next/link"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { notFound } from "next/navigation"
+import { useAuth } from "@/lib/firebase/auth-context"
+import { getItinerary } from "@/lib/firebase/firestore"
 import DeleteItineraryButton from "@/components/delete-itinerary-button"
 
-export default async function ItineraryView({ params }: { params: { id: string } }) {
-  const supabase = createServerSupabaseClient()
+export default function ItineraryView({ params }: { params: { id: string } }) {
+  const router = useRouter()
+  const { user, loading } = useAuth()
+  const [itinerary, setItinerary] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  useEffect(() => {
+    // If not logged in and not loading, redirect to sign in
+    if (!loading && !user) {
+      router.push("/signin")
+      return
+    }
 
-  if (!user) {
-    notFound()
+    // Fetch the itinerary if user is logged in
+    const fetchItinerary = async () => {
+      if (!user) return
+
+      try {
+        setIsLoading(true)
+        const itineraryData = await getItinerary(params.id)
+
+        if (!itineraryData || itineraryData.userId !== user.uid) {
+          // Itinerary not found or doesn't belong to the user
+          router.push("/dashboard")
+          return
+        }
+
+        // Format the itinerary data
+        const formattedItinerary = {
+          id: itineraryData.id,
+          destination: itineraryData.destination,
+          startDate: new Date(itineraryData.startDate),
+          endDate: new Date(itineraryData.endDate),
+          travelersCount: itineraryData.travelersCount,
+          travelGroupType: itineraryData.travelGroupType,
+          description: itineraryData.content.description,
+          image: itineraryData.content.image_url || "/placeholder.svg?height=400&width=800",
+          days: itineraryData.content.days,
+          accommodations: itineraryData.content.accommodations,
+          tips: itineraryData.content.tips,
+          travelDetails: itineraryData.content.travelDetails,
+        }
+
+        setItinerary(formattedItinerary)
+      } catch (error) {
+        console.error("Error fetching itinerary:", error)
+        router.push("/dashboard")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (user) {
+      fetchItinerary()
+    }
+  }, [user, loading, params.id, router])
+
+  if (loading || isLoading) {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="container mx-auto flex items-center justify-center px-4 py-16">
+          <div className="text-center">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  // Fetch the itinerary
-  const { data: itinerary, error } = await supabase
-    .from("itineraries")
-    .select("*")
-    .eq("id", params.id)
-    .eq("user_id", user.id)
-    .single()
-
-  if (error || !itinerary) {
-    notFound()
-  }
-
-  // Format the itinerary data
-  const formattedItinerary = {
-    id: itinerary.id,
-    destination: itinerary.destination,
-    startDate: new Date(itinerary.start_date),
-    endDate: new Date(itinerary.end_date),
-    travelersCount: itinerary.travelers_count,
-    travelGroupType: itinerary.travel_group_type,
-    description: itinerary.content.description,
-    image: itinerary.content.image_url || "/placeholder.svg?height=400&width=800",
-    days: itinerary.content.days,
-    accommodations: itinerary.content.accommodations,
-    tips: itinerary.content.tips,
-    travelDetails: itinerary.content.travelDetails,
+  if (!itinerary) {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h2 className="mb-4 text-2xl font-bold">Itinerary not found</h2>
+            <Button asChild>
+              <Link href="/dashboard">Return to Dashboard</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <ItineraryHeader itinerary={formattedItinerary} />
+        <ItineraryHeader itinerary={itinerary} />
 
-        <ItineraryTabs itinerary={formattedItinerary} />
+        <ItineraryTabs itinerary={itinerary} />
 
         <div className="mt-8 space-y-8">
-          {formattedItinerary.days.map((day) => (
+          {itinerary.days.map((day) => (
             <DayPlan key={day.dayNumber} day={day} />
           ))}
         </div>

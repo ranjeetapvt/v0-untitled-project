@@ -62,8 +62,10 @@
     "@supabase/supabase-js": "latest",
     "framer-motion": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
+    "jspdf": "latest",
+    "firebase": "latest",
     "react-icons": "latest",
-    "jspdf": "latest"
+    "firebase-admin": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

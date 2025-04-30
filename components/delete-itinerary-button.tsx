@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase/client"
+import { deleteItinerary } from "@/lib/firebase/firestore"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,12 +26,7 @@ export default function DeleteItineraryButton({ id }: { id: string }) {
       setIsDeleting(true)
 
       // Delete the itinerary
-      const { error } = await supabase.from("itineraries").delete().eq("id", id)
-
-      if (error) {
-        console.error("Error deleting itinerary:", error)
-        return
-      }
+      await deleteItinerary(id)
 
       // Redirect to dashboard
       router.push("/dashboard")

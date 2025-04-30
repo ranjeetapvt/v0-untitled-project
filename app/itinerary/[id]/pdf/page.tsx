@@ -6,56 +6,50 @@ import { generatePDF } from "@/lib/pdf-generator"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Download } from "lucide-react"
 import Link from "next/link"
-import { supabase } from "@/lib/supabase/client"
+import { useAuth } from "@/lib/firebase/auth-context"
+import { getItinerary } from "@/lib/firebase/firestore"
 
 export default function PrintItinerary({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const { user, loading } = useAuth()
   const [itinerary, setItinerary] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // If not logged in and not loading, redirect to sign in
+    if (!loading && !user) {
+      router.push("/signin")
+      return
+    }
+
+    // Fetch the itinerary if user is logged in
     const fetchItinerary = async () => {
+      if (!user) return
+
       try {
         setIsLoading(true)
+        const itineraryData = await getItinerary(params.id)
 
-        // Check if user is authenticated
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) {
-          router.push("/signin")
-          return
-        }
-
-        // Fetch the itinerary
-        const { data, error } = await supabase
-          .from("itineraries")
-          .select("*")
-          .eq("id", params.id)
-          .eq("user_id", user.id)
-          .single()
-
-        if (error || !data) {
-          console.error("Error fetching itinerary:", error)
+        if (!itineraryData || itineraryData.userId !== user.uid) {
+          // Itinerary not found or doesn't belong to the user
           router.push("/dashboard")
           return
         }
 
         // Format the itinerary data
         const formattedItinerary = {
-          id: data.id,
-          destination: data.destination,
-          startDate: new Date(data.start_date),
-          endDate: new Date(data.end_date),
-          travelersCount: data.travelers_count,
-          travelGroupType: data.travel_group_type,
-          description: data.content.description,
-          image: data.content.image_url || "/placeholder.svg?height=400&width=800",
-          days: data.content.days,
-          accommodations: data.content.accommodations,
-          tips: data.content.tips,
-          travelDetails: data.content.travelDetails,
+          id: itineraryData.id,
+          destination: itineraryData.destination,
+          startDate: new Date(itineraryData.startDate),
+          endDate: new Date(itineraryData.endDate),
+          travelersCount: itineraryData.travelersCount,
+          travelGroupType: itineraryData.travelGroupType,
+          description: itineraryData.content.description,
+          image: itineraryData.content.image_url || "/placeholder.svg?height=400&width=800",
+          days: itineraryData.content.days,
+          accommodations: itineraryData.content.accommodations,
+          tips: itineraryData.content.tips,
+          travelDetails: itineraryData.content.travelDetails,
         }
 
         setItinerary(formattedItinerary)
@@ -67,8 +61,10 @@ export default function PrintItinerary({ params }: { params: { id: string } }) {
       }
     }
 
-    fetchItinerary()
-  }, [params.id, router])
+    if (user) {
+      fetchItinerary()
+    }
+  }, [user, loading, params.id, router])
 
   const handleDownload = () => {
     if (!itinerary) return
@@ -84,7 +80,7 @@ export default function PrintItinerary({ params }: { params: { id: string } }) {
     URL.revokeObjectURL(url)
   }
 
-  if (isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="container mx-auto flex items-center justify-center px-4 py-16">
         <div className="text-center">

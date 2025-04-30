@@ -5,25 +5,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FcGoogle } from "react-icons/fc"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { supabase } from "@/lib/supabase/client"
+import { useAuth } from "@/lib/firebase/auth-context"
 
 export default function SignIn() {
   const router = useRouter()
+  const { signInWithGoogle } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true)
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/api/auth/callback`,
-        },
-      })
-
-      if (error) {
-        throw error
-      }
+      await signInWithGoogle()
+      router.push("/dashboard")
     } catch (error) {
       console.error("Error signing in with Google:", error)
     } finally {

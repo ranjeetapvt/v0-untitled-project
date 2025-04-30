@@ -1,44 +1,72 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { ItineraryGrid } from "@/components/itinerary-grid"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { PlusCircle } from "lucide-react"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+import { useAuth } from "@/lib/firebase/auth-context"
+import { getUserItineraries } from "@/lib/firebase/firestore"
 
-export default async function Dashboard() {
-  const supabase = createServerSupabaseClient()
+export default function Dashboard() {
+  const router = useRouter()
+  const { user, loading } = useAuth()
+  const [itineraries, setItineraries] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  useEffect(() => {
+    // If not logged in and not loading, redirect to sign in
+    if (!loading && !user) {
+      router.push("/signin")
+      return
+    }
 
-  if (!user) {
-    redirect("/signin")
+    // Fetch itineraries if user is logged in
+    const fetchItineraries = async () => {
+      if (!user) return
+
+      try {
+        setIsLoading(true)
+        const userItineraries = await getUserItineraries(user.uid)
+
+        // Transform the data for the ItineraryGrid component
+        const formattedItineraries = userItineraries.map((itinerary) => ({
+          id: itinerary.id,
+          destination: itinerary.destination,
+          startDate: new Date(itinerary.startDate),
+          endDate: new Date(itinerary.endDate),
+          image: itinerary.content.image_url || "/placeholder.svg?height=200&width=300",
+        }))
+
+        setItineraries(formattedItineraries)
+      } catch (error) {
+        console.error("Error fetching itineraries:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (user) {
+      fetchItineraries()
+    }
+  }, [user, loading, router])
+
+  if (loading || isLoading) {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="container mx-auto flex items-center justify-center px-4 py-16">
+          <div className="text-center">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
-
-  // Fetch the user's itineraries
-  const { data: itineraries, error } = await supabase
-    .from("itineraries")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-
-  if (error) {
-    console.error("Error fetching itineraries:", error)
-  }
-
-  // Transform the data for the ItineraryGrid component
-  const formattedItineraries =
-    itineraries?.map((itinerary) => ({
-      id: itinerary.id,
-      destination: itinerary.destination,
-      startDate: new Date(itinerary.start_date),
-      endDate: new Date(itinerary.end_date),
-      image: itinerary.content.image_url || "/placeholder.svg?height=200&width=300",
-    })) || []
 
   return (
     <div className="min-h-screen">
@@ -55,7 +83,7 @@ export default async function Dashboard() {
           </Link>
         </div>
 
-        <ItineraryGrid itineraries={formattedItineraries} />
+        <ItineraryGrid itineraries={itineraries} />
       </div>
     </div>
   )

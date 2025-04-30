@@ -15,12 +15,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { supabase } from "@/lib/supabase/client"
-import type { User } from "@supabase/supabase-js"
+import { useAuth } from "@/lib/firebase/auth-context"
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<{
     name: string
     email: string
@@ -29,63 +27,33 @@ export function Navbar() {
   } | null>(null)
   const pathname = usePathname()
   const router = useRouter()
+  const { user, signOut } = useAuth()
 
   const isLoggedIn = !!user
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
+    if (user) {
+      const name = user.displayName || "User"
+      const email = user.email || ""
+      const initials = name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+      const avatar = user.photoURL || undefined
 
-      if (user) {
-        const name = user.user_metadata.full_name || "User"
-        const email = user.email || ""
-        const initials = name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .toUpperCase()
-        const avatar = user.user_metadata.avatar_url
-
-        setUserProfile({ name, email, initials, avatar })
-      }
+      setUserProfile({ name, email, initials, avatar })
+    } else {
+      setUserProfile(null)
     }
-
-    fetchUser()
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user)
-
-        const name = session.user.user_metadata.full_name || "User"
-        const email = session.user.email || ""
-        const initials = name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .toUpperCase()
-        const avatar = session.user.user_metadata.avatar_url
-
-        setUserProfile({ name, email, initials, avatar })
-      } else if (event === "SIGNED_OUT") {
-        setUser(null)
-        setUserProfile(null)
-      }
-    })
-
-    return () => {
-      authListener.subscription.unsubscribe()
-    }
-  }, [])
+  }, [user])
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    await signOut()
     router.push("/")
   }
 
